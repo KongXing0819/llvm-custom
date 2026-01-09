@@ -24,17 +24,12 @@ permissions:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        # riscv64-linux-android
-        target: [aarch64-linux-android, armv7a-linux-androideabi, i686-linux-android, x86_64-linux-android]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     env:
       ANDROID_PLATFORM: 25
       ROOTDIR: ${{github.workspace}}
-      TARGET_BUILD_DIR: ${{github.workspace}}/build/${{matrix.target}}
-      TARGET_INSTALL_DIR: ${{github.workspace}}/output/${{matrix.target}}
+      TARGET_BUILD_DIR: ${{github.workspace}}/build/aarch64-linux-android
+      TARGET_INSTALL_DIR: ${{github.workspace}}/output/aarch64-linux-android
     steps:
       - name: Maximize build space
         uses: easimon/maximize-build-space@v10
@@ -113,15 +108,11 @@ jobs:
 
       - name: Build dependencies
         run : |
-          if [ "${{ matrix.target }}" = "riscv64-linux-android" ]; then
-            ANDROID_PLATFORM=35
-          else
-            ANDROID_PLATFORM=${ANDROID_PLATFORM}
-          fi
+          ANDROID_PLATFORM=${ANDROID_PLATFORM}
 
           TOOLCHAIN=$ROOTDIR/android-ndk-r${{inputs.version}}${{inputs.revision}}/toolchains/llvm/prebuilt/linux-x86_64
-          export CC=${TOOLCHAIN}/bin/${{matrix.target}}${ANDROID_PLATFORM}-clang
-          export CXX=${TOOLCHAIN}/bin/${{matrix.target}}${ANDROID_PLATFORM}-clang++
+          export CC=${TOOLCHAIN}/bin/aarch64-linux-android${ANDROID_PLATFORM}-clang
+          export CXX=${TOOLCHAIN}/bin/aarch64-linux-android${ANDROID_PLATFORM}-clang++
           export LD=${TOOLCHAIN}/bin/ld
           export OBJCOPY=${TOOLCHAIN}/bin/llvm-objcopy
           export AR=${TOOLCHAIN}/bin/llvm-ar
@@ -198,27 +189,23 @@ jobs:
 
       - name: Build LLVM
         run: |
-          if [ "${{ matrix.target }}" = "riscv64-linux-android" ]; then
-            ANDROID_PLATFORM=35
-          else
-            ANDROID_PLATFORM=${ANDROID_PLATFORM}
-          fi
+          ANDROID_PLATFORM=${ANDROID_PLATFORM}
 
           ANDROID_NDK_HOME=$ROOTDIR/android-ndk-r${{inputs.version}}${{inputs.revision}}
           ANDROID_NDK_ROOT=$ANDROID_NDK_HOME
           TOOLCHAIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
 
           cmake -S "$ROOTDIR/llvm" -B "${TARGET_BUILD_DIR}" -G Ninja \
-            -DCMAKE_INSTALL_PREFIX="${ROOTDIR}/llvm-${{matrix.target}}" \
+            -DCMAKE_INSTALL_PREFIX="${ROOTDIR}/llvm-aarch64-linux-android" \
             -DCMAKE_PREFIX_PATH="${TARGET_INSTALL_DIR}" \
             -DLLVM_TARGETS_TO_BUILD="X86;AArch64;ARM;RISCV" \
             -DCMAKE_BUILD_TYPE=MinSizeRel \
             -DCMAKE_CROSSCOMPILING=True \
             -DCMAKE_SYSTEM_NAME=Linux \
-            -DLLVM_DEFAULT_TARGET_TRIPLE=${{matrix.target}}${ANDROID_PLATFORM} \
-            -DCMAKE_C_COMPILER="${TOOLCHAIN}/bin/${{matrix.target}}${ANDROID_PLATFORM}-clang" \
-            -DCMAKE_CXX_COMPILER="${TOOLCHAIN}/bin/${{matrix.target}}${ANDROID_PLATFORM}-clang++" \
-            -DCMAKE_ASM_COMPILER="${TOOLCHAIN}/bin/${{matrix.target}}${ANDROID_PLATFORM}-clang" \
+            -DLLVM_DEFAULT_TARGET_TRIPLE=aarch64-linux-android${ANDROID_PLATFORM} \
+            -DCMAKE_C_COMPILER="${TOOLCHAIN}/bin/aarch64-linux-android${ANDROID_PLATFORM}-clang" \
+            -DCMAKE_CXX_COMPILER="${TOOLCHAIN}/bin/aarch64-linux-android${ANDROID_PLATFORM}-clang++" \
+            -DCMAKE_ASM_COMPILER="${TOOLCHAIN}/bin/aarch64-linux-android${ANDROID_PLATFORM}-clang" \
             -DCMAKE_LINKER="${TOOLCHAIN}/bin/ld" \
             -DCMAKE_OBJCOPY="${TOOLCHAIN}/bin/llvm-objcopy" \
             -DCMAKE_AR="${TOOLCHAIN}/bin/llvm-ar" \
@@ -277,20 +264,20 @@ jobs:
 
       - name: Strip and Check
         run: |
-          find llvm-${{matrix.target}}/bin -type f ! -lname '*' | while IFS= read -r file; do
+          find llvm-aarch64-linux-android/bin -type f ! -lname '*' | while IFS= read -r file; do
             if file "$file" | grep -q ELF; then
               "$ROOTDIR/android-ndk-r${{inputs.version}}${{inputs.revision}}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" -s "$file"
             fi
           done
-          file llvm-${{matrix.target}}/bin/*
-          tree llvm-${{matrix.target}}
+          file llvm-aarch64-linux-android/bin/*
+          tree llvm-aarch64-linux-android
 
       - name: Compress
         run: |
           projects=$(echo "${{inputs.projects}}" | tr ";" "+")
-          tarball_name=${projects}-r${{inputs.version}}${{inputs.revision}}-${{matrix.target}}
+          tarball_name=${projects}-r${{inputs.version}}${{inputs.revision}}-aarch64-linux-android
           echo tarball_name=${tarball_name} >> ${GITHUB_ENV}
-          mv llvm-${{matrix.target}} ${tarball_name}
+          mv llvm-aarch64-linux-android ${tarball_name}
           tar -c ${tarball_name} | xz -T0 -v >${tarball_name}.tar.xz
 
       - name: Upload release
